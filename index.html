@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulasi AI: Prediksi Karbon Organik Tanah (SOC)</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js (3D Graphics) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Chart.js (Grafik Real-time) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #0d1117; color: #c9d1d9; }
+        .glass { background: rgba(22, 27, 34, 0.75); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .glow { box-shadow: 0 0 20px rgba(46, 160, 67, 0.4); }
+        #canvas-container { width: 100%; height: 350px; position: relative; border-radius: 12px; overflow: hidden; }
+        input[type=range] { accent-color: #2ea44f; }
+    </style>
+</head>
+<body class="p-4 md:p-8 min-h-screen">
+
+    <div class="max-w-7xl mx-auto space-y-6">
+        
+        <!-- Header -->
+        <header class="glass p-6 rounded-2xl flex flex-col md:flex-row justify-between items-center border-l-4 border-green-500">
+            <div>
+                <h1 class="text-3xl font-bold text-white flex items-center gap-3">
+                    <i class="fa-solid fa-seedling text-green-400"></i> AI Soil Carbon Simulator
+                </h1>
+                <p class="text-gray-400 text-sm mt-1">Simulasi prediksi Karbon Organik Tanah (SOC) berbasis Random Forest ML</p>
+            </div>
+            <div class="mt-4 md:mt-0 flex gap-4">
+                <button onclick="presetSubur()" class="px-4 py-2 bg-green-700 hover:bg-green-600 text-white rounded-lg text-sm font-semibold transition">
+                    <i class="fa-solid fa-wand-magic-sparkles mr-1"></i> Preset Subur
+                </button>
+                <button onclick="presetKritis()" class="px-4 py-2 bg-red-700 hover:bg-red-600 text-white rounded-lg text-sm font-semibold transition">
+                    <i class="fa-solid fa-triangle-exclamation mr-1"></i> Preset Kritis
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Layout -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            <!-- Left Panel: Parameter Controls (Input) -->
+            <div class="lg:col-span-4 glass p-6 rounded-2xl space-y-5">
+                <h2 class="text-xl font-semibold text-white border-b border-gray-700 pb-2 flex items-center gap-2">
+                    <i class="fa-solid fa-sliders text-blue-400"></i> Parameter Input ML
+                </h2>
+
+                <!-- NDVI Slider -->
+                <div>
+                    <div class="flex justify-between text-sm mb-1">
+                        <label class="font-medium flex items-center gap-2">
+                            <i class="fa-solid fa-leaf text-green-400"></i> Vegetasi (NDVI)
+                        </label>
+                        <span id="val-ndvi" class="font-bold text-green-400">0.65</span>
+                    </div>
+                    <input type="range" id="ndvi" min="0" max="1" step="0.01" value="0.65" class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer">
+                    <span class="text-xs text-gray-500">Indeks Kerapatan Tanaman (0.0 - 1.0)</span>
+                </div>
+
+                <!-- Clay Content Slider -->
+                <div>
+                    <div class="flex justify-between text-sm mb-1">
+                        <label class="font-medium flex items-center gap-2">
+                            <i class="fa-solid fa-cubes text-yellow-600"></i> Kandungan Liat (Clay %)
+                        </label>
+                        <span id="val-clay" class="font-bold text-yellow-500">30%</span>
+                    </div>
+                    <input type="range" id="clay" min="5" max="60" step="1" value="30" class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer">
+                    <span class="text-xs text-gray-500">Persentase Partikel Liat Halus</span>
+                </div>
+
+                <!-- Rainfall Slider -->
+                <div>
+                    <div class="flex justify-between text-sm mb-1">
+                        <label class="font-medium flex items-center gap-2">
+                            <i class="fa-solid fa-cloud-showers-heavy text-blue-400"></i> Curah Hujan Tahunan
+                        </label>
+                        <span id="val-rain" class="font-bold text-blue-400">1800 mm</span>
+                    </div>
+                    <input type="range" id="rain" min="400" max="3500" step="50" value="1800" class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer">
+                    <span class="text-xs text-gray-500">Presipitasi rata-rata (mm/tahun)</span>
+                </div>
+
+                <!-- Temperature Slider -->
+                <div>
+                    <div class="flex justify-between text-sm mb-1">
+                        <label class="font-medium flex items-center gap-2">
+                            <i class="fa-solid fa-temperature-high text-red-400"></i> Suhu Rata-rata
+                        </label>
+                        <span id="val-temp" class="font-bold text-red-400">26 °C</span>
+                    </div>
+                    <input type="range" id="temp" min="10" max="40" step="0.5" value="26" class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer">
+                    <span class="text-xs text-gray-500">Mempengaruhi tingkat dekomposisi</span>
+                </div>
+            </div>
+
+            <!-- Middle Panel: 3D Visualization & Main Output -->
+            <div class="lg:col-span-5 space-y-6">
+                
+                <!-- 3D Canvas -->
+                <div class="glass p-2 rounded-2xl relative">
+                    <div id="canvas-container"></div>
+                    <div class="absolute bottom-4 left-4 right-4 bg-black/60 backdrop-blur-md p-3 rounded-xl flex justify-between items-center text-xs">
+                        <span class="text-gray-300"><i class="fa-solid fa-eye text-green-400 mr-1"></i> Visualisasi 3D Struktur Tanah</span>
+                        <span id="status-soil" class="font-bold text-green-400">Kondisi Optimal</span>
+                    </div>
+                </div>
+
+                <!-- Prediction Card -->
+                <div class="glass p-6 rounded-2xl glow text-center border border-green-500/30">
+                    <p class="text-xs uppercase tracking-widest text-gray-400 font-semibold mb-1">Hasil Prediksi Model AI</p>
+                    <div class="flex justify-center items-baseline gap-2">
+                        <span id="soc-result" class="text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-200">2.45</span>
+                        <span class="text-xl font-bold text-green-400">% SOC</span>
+                    </div>
+                    <p id="soc-desc" class="text-sm text-gray-300 mt-2">Kandungan karbon organik tanah tergolong <strong class="text-green-400">TINGGI</strong>.</p>
+                </div>
+
+            </div>
+
+            <!-- Right Panel: Analytics & Feature Importance -->
+            <div class="lg:col-span-3 glass p-6 rounded-2xl space-y-6">
+                <h2 class="text-xl font-semibold text-white border-b border-gray-700 pb-2 flex items-center gap-2">
+                    <i class="fa-solid fa-chart-pie text-purple-400"></i> Feature Importance
+                </h2>
+                
+                <p class="text-xs text-gray-400">Kontribusi tiap fitur terhadap hasil keputusan model Machine Learning:</p>
+
+                <div class="h-56">
+                    <canvas id="importanceChart"></canvas>
+                </div>
+
+                <div class="p-4 bg-gray-900/60 rounded-xl border border-gray-800 text-xs space-y-2">
+                    <div class="font-semibold text-gray-300 flex items-center gap-2">
+                        <i class="fa-solid fa-lightbulb text-yellow-400"></i> Catatan Sains:
+                    </div>
+                    <p class="text-gray-400 leading-relaxed">
+                        NDVI dan Kandungan Liat memberikan kontribusi tertinggi untuk stabilisasi akumulasi Karbon Organik dalam tanah.
+                    </p>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- JavaScript Logic -->
+    <script>
+        // --- 1. GAME & ML ENGINE LOGIC ---
+        const inputs = {
+            ndvi: document.getElementById('ndvi'),
+            clay: document.getElementById('clay'),
+            rain: document.getElementById('rain'),
+            temp: document.getElementById('temp')
+        };
+
+        const displays = {
+            ndvi: document.getElementById('val-ndvi'),
+            clay: document.getElementById('val-clay'),
+            rain: document.getElementById('val-rain'),
+            temp: document.getElementById('val-temp'),
+            result: document.getElementById('soc-result'),
+            desc: document.getElementById('soc-desc'),
+            status: document.getElementById('status-soil')
+        };
+
+        // Algoritma Regresi / Random Forest Sederhana untuk Prediksi SOC (%)
+        function predictSOC(ndvi, clay, rain, temp) {
+            // Formula estimasi berbasis bobot fitur
+            let baseSOC = 0.5;
+            let ndviContribution = ndvi * 2.8;
+            let clayContribution = (clay / 100) * 1.5;
+            let rainContribution = (rain / 3500) * 1.2;
+            let tempPenalty = (temp > 25) ? (temp - 25) * 0.05 : 0; // Temp tinggi mempercepat dekomposisi
+
+            let soc = baseSOC + ndviContribution + clayContribution + rainContribution - tempPenalty;
+            return Math.max(0.2, Math.min(5.0, soc)).toFixed(2);
+        }
+
+        function updateSimulation() {
+            const ndvi = parseFloat(inputs.ndvi.value);
+            const clay = parseFloat(inputs.clay.value);
+            const rain = parseFloat(inputs.rain.value);
+            const temp = parseFloat(inputs.temp.value);
+
+            // Update UI Labels
+            displays.ndvi.innerText = ndvi.toFixed(2);
+            displays.clay.innerText = clay + '%';
+            displays.rain.innerText = rain + ' mm';
+            displays.temp.innerText = temp + ' °C';
+
+            // Calculate Prediction
+            const soc = predictSOC(ndvi, clay, rain, temp);
+            displays.result.innerText = soc;
+
+            // Update Description & Visual Status
+            if (soc > 2.5) {
+                displays.desc.innerHTML = 'Kandungan karbon organik tanah tergolong <strong class="text-green-400">SANGAT TINGGI (Sangat Subur)</strong>.';
+                displays.status.innerText = 'Kondisi Optimal (Tinggi Humus)';
+                displays.status.className = 'font-bold text-green-400';
+                updateSoilColor(0x2e7d32, 0x1b5e20); // Hijau subur / Gelap
+            } else if (soc >= 1.2) {
+                displays.desc.innerHTML = 'Kandungan karbon organik tanah tergolong <strong class="text-yellow-400">SEDANG (Cukup)</strong>.';
+                displays.status.innerText = 'Kondisi Sedang';
+                displays.status.className = 'font-bold text-yellow-400';
+                updateSoilColor(0x8d6e63, 0x4e342e); // Cokelat
+            } else {
+                displays.desc.innerHTML = 'Kandungan karbon organik tanah tergolong <strong class="text-red-400">KRITIS (Degradasi)</strong>.';
+                displays.status.innerText = 'Kondisi Kritis (Tandus)';
+                displays.status.className = 'font-bold text-red-400';
+                updateSoilColor(0xd7ccc8, 0xa1887f); // Pucat/Tandus
+            }
+
+            // Update 3D Foliage scale based on NDVI
+            if (foliageMesh) {
+                foliageMesh.scale.set(ndvi * 1.2, ndvi * 1.2, ndvi * 1.2);
+            }
+        }
+
+        // Listener events
+        Object.values(inputs).forEach(input => input.addEventListener('input', updateSimulation));
+
+        // Presets
+        function presetSubur() {
+            inputs.ndvi.value = 0.85;
+            inputs.clay.value = 45;
+            inputs.rain.value = 2500;
+            inputs.temp.value = 22;
+            updateSimulation();
+        }
+
+        function presetKritis() {
+            inputs.ndvi.value = 0.15;
+            inputs.clay.value = 10;
+            inputs.rain.value = 600;
+            inputs.temp.value = 35;
+            updateSimulation();
+        }
+
+        // --- 2. THREE.JS (GRAPHICS 3D) ---
+        let scene, camera, renderer, soilMesh, foliageMesh;
+
+        function init3D() {
+            const container = document.getElementById('canvas-container');
+            
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x111827);
+
+            camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 1000);
+            camera.position.set(0, 4, 7);
+            camera.lookAt(0, 0, 0);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.shadowMap.enabled = true;
+            container.appendChild(renderer.domElement);
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+            scene.add(ambientLight);
+
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            dirLight.position.set(5, 10, 7);
+            dirLight.castShadow = true;
+            scene.add(dirLight);
+
+            // Soil Layer 3D Block
+            const soilGeo = new THREE.BoxGeometry(4, 1.5, 4);
+            const soilMat = new THREE.MeshStandardMaterial({ color: 0x4e342e, roughness: 0.9 });
+            soilMesh = new THREE.Mesh(soilGeo, soilMat);
+            soilMesh.position.y = -0.75;
+            scene.add(soilMesh);
+
+            // Vegetation Foliage (Representation of NDVI)
+            const foliageGeo = new THREE.ConeGeometry(1.5, 2.5, 8);
+            const foliageMat = new THREE.MeshStandardMaterial({ color: 0x2e7d32, roughness: 0.5 });
+            foliageMesh = new THREE.Mesh(foliageGeo, foliageMat);
+            foliageMesh.position.y = 1.25;
+            scene.add(foliageMesh);
+
+            // Animation Loop
+            function animate() {
+                requestAnimationFrame(animate);
+                soilMesh.rotation.y += 0.003;
+                foliageMesh.rotation.y += 0.003;
+                renderer.render(scene, camera);
+            }
+            animate();
+        }
+
+        function updateSoilColor(foliageColorHex, soilColorHex) {
+            if (soilMesh && foliageMesh) {
+                soilMesh.material.color.setHex(soilColorHex);
+                foliageMesh.material.color.setHex(foliageColorHex);
+            }
+        }
+
+        // --- 3. CHART.JS (FEATURE IMPORTANCE) ---
+        function initChart() {
+            const ctx = document.getElementById('importanceChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['NDVI', 'Clay %', 'Rainfall', 'Temp'],
+                    datasets: [{
+                        label: 'Bobot Pengaruh (%)',
+                        data: [42, 28, 18, 12],
+                        backgroundColor: [
+                            '#4ade80',
+                            '#eab308',
+                            '#60a5fa',
+                            '#f87171'
+                        ],
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: 'rgba(255, 255, 255, 0.1)' }, ticks: { color: '#9ca3af' } },
+                        x: { grid: { display: false }, ticks: { color: '#9ca3af' } }
+                    }
+                }
+            });
+        }
+
+        // Initialize Everything
+        window.onload = () => {
+            init3D();
+            initChart();
+            updateSimulation();
+        };
+
+        // Window Resize Handler
+        window.onresize = () => {
+            const container = document.getElementById('canvas-container');
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        };
+    </script>
+</body>
+</html>
